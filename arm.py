@@ -84,7 +84,7 @@ class uint128_t:  # might not be usefull
     msb = 0
 
 class armReg_t:
-    reg = 0  # Index of register
+    reg = 0  # Index  of register
     val = 0  # value of register
     newVal = 0  # new value of register
 
