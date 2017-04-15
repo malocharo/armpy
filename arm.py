@@ -89,15 +89,15 @@ class armReg_t:
     newVal = 0  # new value of register
 
 class armN8LpLd_t:
-    regsH = [None] * armconst._ARM_N8LPLD_REGH_SIZE # diz is tricky aled
+    regsH = [armReg_t] * armconst._ARM_N8LPLD_REGH_SIZE # diz is tricky aled
 #typedef struct armN8LpLd_s
 #{
 #	armReg_t	regsH[_ARM_N8LPLD_REGH_SIZE];
 #}armN8LpLd_t;
 
 class armN8Lw_t:
-    regsM = [None] * armconst._ARM_N8LW_REGM_SIZE
-    regsO = [None] * armconst._ARM_N8LW_REGO_SIZE  # diz is tricky aled
+    regsM = [armReg_t] * armconst._ARM_N8LW_REGM_SIZE
+    regsO = [armReg_t] * armconst._ARM_N8LW_REGO_SIZE  # diz is tricky aled
 #typedef struct armN8Lw_s
 #{
 #	armReg_t	regsM[_ARM_N8LW_REGM_SIZE];
