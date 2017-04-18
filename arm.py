@@ -4,31 +4,32 @@ import armport_unix
 
 class const:
     ARM_FSK_BROADCAST = 255
-    ARM_FSK_POWER_AUTO = -127
-    _ARM_TIME_RESET = 10  # ms
-    _ARM_TIME_TIMEOUT = 20  # ms
-    _ARM_TIME_BACK_AT = 100 # ms
-    _ARM_TIME_BACK_SF_UPLINK_TIMEOUT = 10000  # 10sec
-    _ARM_TIME_BACK_SF_DOWNLINK_TIMEOUT = 45000  # 45sec
-    _ARM_TIME_BOOTING = 20  #ms
-    _ARM_NUMBER_OF_TRIALS_GO_AT = 35
-    _ARM_SIGFOX_PAYLOAD_MAX = 12
-    _ARM_SIGFOX_PAYLOAD_DOWNLINK = 8
-    _ARM_RF_PAYLOAD_MAX = 120
-    _ARM_MIN_CHANNEL = 1
-    _ARM_MAX_CHANNEL = 559
-    _ARM_MIN_RADIO_POWER = -18
-    _ARM_MAX_LONG_PREAMBLE_TIME = 900
-    _ARM_MAX_POST_TIME = 2550
-    _ARM_BASE_DEC = 10
-    _ARM_BASE_HEX = 16
+    ARM_FSK_POWER_AUTO = (-127)
+    ARM_TIME_RESET = 10  # ms
+    ARM_TIME_TIMEOUT = 20  # ms
+    ARM_TIME_BACK_AT = 100 # ms
+    ARM_TIME_BACK_SF_UPLINK_TIMEOUT = 10000  # 10sec
+    ARM_TIME_BACK_SF_DOWNLINK_TIMEOUT = 45000  # 45sec
+    ARM_TIME_BOOTING = 20  #ms
+    ARM_NUMBER_OF_TRIALS_GO_AT = 35
+    ARM_SIGFOX_PAYLOAD_MAX = 12
+    ARM_SIGFOX_PAYLOAD_DOWNLINK = 8
+    ARM_RF_PAYLOAD_MAX = 120
+    ARM_MIN_CHANNEL = 1
+    ARM_MAX_CHANNEL = 559
+    ARM_MIN_RADIO_POWER = -18
+    ARM_MAX_LONG_PREAMBLE_TIME = 900
+    ARM_MAX_POST_TIME = 2550
+    ARM_BASE_DEC = 10
+    ARM_BASE_HEX = 16
 
-    def ARM_LW_UNCONFIRMED(self,val):
-        return val*-1
-    def ARM_LW_IS_UNCONFIRMED(self,val):
-        if val <= 0:
-            return val
-        return 1
+    #def ARM_LW_UNCONFIRMED(self,val):
+     #   return val*-1
+    #def ARM_LW_IS_UNCONFIRMED(self,val):
+     #   if val <= 0:
+      #      return val
+       # return 1
+
 
 #typedef enum armError_e
 #{
@@ -121,3 +122,75 @@ class armN8Lw_t:
 #	armReg_t	regsM[_ARM_N8LW_REGM_SIZE];
 #	armReg_t	regsO[_ARM_N8LW_REGO_SIZE];
 #}armN8Lw_t;
+
+
+##################################### begin of the class arm itself####################################################
+
+class Arm:
+    def __init__(self):
+        self.port = 0
+        self.type = 0
+
+    def Init(self,port):
+        self.type = armType_t.ARM_TYPE_NONE
+        self.port = armport_unix.ArmPort(port)
+        try:
+            self.port.Open()
+        except Exception as err:
+            print("ERROR opening port " + err)
+            return -1
+
+        try:
+            self.port.Config(armBaudrate_t.ARMPORT_BAUDRATE_19200,armport_unix.armPortDatabits_t.ARMPORT_DATA_8BITS,armport_unix.armPortParity_t.ARMPORT_PARITY_NO,armport_unix.armPortStopbit_t.ARM_STOPBIT_1)
+        # default conf baudrate =19200,8bits of data, no parity, 1 bit stop
+        except Exception as err:
+            print("ERROR makin config " + err)
+            return -1
+
+        self.Reboot()
+
+    def DeInit(self):
+        try:
+            self.port.close()
+        except Exception as err:
+            print("ERROR while closing port " + err)
+            return -1
+        self.type =armType_t.ARM_TYPE_NONE
+
+    def Reboot(self):
+        if armconfig.ARMPORT_WITH_nSLEEP:
+            print("ERROR not implemented yet")
+            exit(1)
+        if armconfig.ARMPORT_WITH_nBOOT:
+            print("ERROR not implemented yet")
+            exit(1)
+        if armconfig.ARMPORT_WITH_nRESET:
+            print("ERROR not implemented yet")
+            exit(1)
+        # no need to reboot cuz inittialization ( type == ARM_TYPE_NONE)
+        if self.type != armType_t.ARM_TYPE_NONE:
+            if self._GoAt() == -1:
+                print("ERROR GoAt")
+                return -1
+
+            # Reboot by "ATR" if ARM is already initialized/used
+            if self.port.write("ATR\n"):
+                print("ERROR writing on port")
+                return -1
+        #wait till booting
+        self.port.delay(const.ARM_TIME_BOOTING)
+
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(1)
+
+        try:
+            self.port.Config(armBaudrate_t.ARMPORT_BAUDRATE_19200,armport_unix.armPortDatabits_t.ARMPORT_DATA_8BITS,armport_unix.armPortParity_t.ARMPORT_PARITY_NO,armport_unix.armPortStopbit_t.ARM_STOPBIT_1)
+        # default conf baudrate =19200,8bits of data, no parity, 1 bit stop
+        except Exception as err:
+            print("ERROR makin config " + err)
+            return -1
+
+
+
+

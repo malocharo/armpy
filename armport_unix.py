@@ -31,6 +31,10 @@ class armPortStopbit_t:
     ARM_STOPBIT_1 = 1
     ARM_STOPBIT_2 = 2
 
+class armPortParity_t:
+    ARMPORT_PARITY_NO = 0
+    ARMPORT_PARITY_ODD = 1
+    ARMPORT_PARITY_EVEN = 2
 
 # NOT USED TODO LATER
 # if defined ARMPORT_WITH_nSLEEP || defined ARMPORT_WITH_nBOOT || defined ARMPORT_WITH_nRESET || __DOXYGEN__
@@ -84,11 +88,11 @@ class ArmPort():
             print("ERROR wrong databits set 7 or 8")
             exit(-1)
 
-        if parity == 0:
+        if parity == armPortParity_t.ARMPORT_PARITY_NO:
             pass
-        elif parity == 1:
+        elif parity == armPortParity_t.ARMPORT_PARITY_ODD:
             cfg[2] |= termios.PARENB | termios.PARODD
-        elif parity == 2:
+        elif parity == armPortParity_t.ARMPORT_PARITY_EVEN:
             cfg[2] |= termios.PARENB
         else:
             print("ERROR wrong parity must be 0 or 1 or 2")
@@ -154,7 +158,7 @@ class ArmPort():
             self._port.write(str(data))
         except Exception as err:
             print("ERROR writing on port " + str(err))
-            exit(-1)
+            return -1
         return 0
 
     def read(self, timeout):
