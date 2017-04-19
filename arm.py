@@ -23,12 +23,12 @@ class const:
     ARM_BASE_DEC = 10
     ARM_BASE_HEX = 16
 
-    #def ARM_LW_UNCONFIRMED(self,val):
-     #   return val*-1
-    #def ARM_LW_IS_UNCONFIRMED(self,val):
-     #   if val <= 0:
-      #      return val
-       # return 1
+    def ARM_LW_UNCONFIRMED(self,val):
+        return val*-1
+    def ARM_LW_IS_UNCONFIRMED(self,val):
+        if val <= 0:
+            return 1
+        return 0
 
 
 #typedef enum armError_e
@@ -78,19 +78,19 @@ class armFskWor_t:
 
 class  armLed_t:
     ARM_LED_OFF = 0  # Led off all the time
-    ARM_LED_OFF_RF = 0  # Led off on RF activity, on other times
-    ARM_LED_ON_RF = 0  # Led on on RF activity, off other times
+    ARM_LED_OFF_RF = 1  # Led off on RF activity, on other times
+    ARM_LED_ON_RF = 2  # Led on on RF activity, off other times
 
 class armFskLbtAfa_t:
     ARM_FSK_LBTAFA_DISABLE = 0
-    ARM_FSK_LBTAFA_LBT = 0 # Enable listen before talk
-    ARM_FSK_LBTAFA_AFA = 0 # Enable adaptative frequenct agility
-    ARM_FSK_LBTAFA_LBTAFA = 0 # Enable both
+    ARM_FSK_LBTAFA_LBT = 1 # Enable listen before talk
+    ARM_FSK_LBTAFA_AFA = 2 # Enable adaptative frequenct agility
+    ARM_FSK_LBTAFA_LBTAFA = 3 # Enable both
 
 class armMode_t:
     ARM_MODE_FSK = 0  # Mode fsk
     ARM_MODE_SFX = 0  # Mode sigfox
-    ARM_MODE_LORAWAN = 0  # Mode LoRaWAN
+    ARM_MODE_LORAWAN = 1  # Mode LoRaWAN
 
 class armType_t:
     ARM_TYPE_NONE = 0x01  # No arm type
@@ -595,6 +595,357 @@ class Arm:
             return -1
 
     def SetLed(self,led):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type&armType_t.ARM_TYPE_N8_LW:
+                self.N8LW.regsM[armconst._ARM_N8LW_IREGM_LED].newVal |= armconst._ARM_N8LW_REGM_LED_BOOT | armconst._ARM_N8LW_REGM_LED_WAKEUP  | armconst._ARM_N8LW_REGM_LED_RADIO_TX | armconst._ARM_N8LW_REGM_LED_RADIO_RX | armconst._ARM_N8LW_REGM_LED_DEFAULT_STATE
+
+                if led == armLed_t.ARM_LED_OFF:
+                    self.N8LW.regsM[armconst._ARM_N8LW_IREGM_LED].newVal &= ~(armconst._ARM_N8LW_REGM_LED_BOOT | armconst._ARM_N8LW_REGM_LED_WAKEUP | armconst._ARM_N8LW_REGM_LED_RADIO_TX | armconst._ARM_N8LW_REGM_LED_RADIO_RX)
+                elif led == armLed_t.ARM_LED_OFF_RF:
+                    self.N8LW.regsM[armconst._ARM_N8LW_IREGM_LED].newVal &= ~(armconst._ARM_N8LW_REGM_LED_DEFAULT_STATE)
+                elif led == armLed_t.ARM_LED_ON_RF:
+                    pass
+                else:
+                    print("Error wrong parameter led, 0, 1 , 2")
+                    return -1
+        return 0
+
+    def GetLed(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+
+        if armconfig.ARM_WITH_N8_LW:
+            if not self.N8LW.regsM[armconst._ARM_N8LW_IREGM_LED].newVal&armconst._ARM_N8LW_REGM_LED_DEFAULT_STATE:
+                return armLed_t.ARM_LED_OFF_RF
+            if self.N8LW.regsM[armconst._ARM_N8LW_IREGM_LED].newVal&(armconst._ARM_N8LW_REGM_LED_BOOT | armconst._ARM_N8LW_REGM_LED_WAKEUP | armconst._ARM_N8LW_REGM_LED_RADIO_TX | armconst._ARM_N8LW_REGM_LED_RADIO_RX):
+                return armLed_t.ARM_LED_ON_RF
+
+        return armLed_t.ARM_LED_OFF
+
+    def LwSetRadio(self,txChannel,power,txSf,rx2Sf,rx2Channel):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if txChannel > 9:
+                    print("ERROR parameters tx channel out of range")
+                    return -1
+                if txSf and ((txSf < 7) or (txSf > 12)):
+                    print("ERROR parameters txSf out of range")
+                    return -1
+                if rx2Sf and ((rx2Sf < 7) or (rx2Sf > 12)):
+                    print("ERROR parameters rx2sf out of range")
+                    return -1
+                if rx2Channel > 9:
+                    print("ERROR parameters rx2channel out of range")
+                    return -1
+
+                if power:
+                    regPower = self.N8LW.regsO[armconst._ARM_N8LW_IREGO_POWER].newVal  # line 1511
+                    regPower &= ~0x07
+
+                    if power == 2:
+                        regPower |= armconst._ARM_N8LW_REGO_POWER_2
+                    if power == 5:
+                        regPower |= armconst._ARM_N8LW_REGO_POWER_5
+                    if power == 8:
+                        regPower |= armconst._ARM_N8LW_REGO_POWER_8
+                    if power == 11:
+                        regPower |= armconst._ARM_N8LW_REGO_POWER_11
+                    if power == 14:
+                        regPower |= armconst._ARM_N8LW_REGO_POWER_14
+                    else:
+                        print("ERROR power out of range")
+                        return -1
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_POWER].newVal = regPower
+                    # disable Tx adaptative speed
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal &= ~armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_SPEED
+                    # set txChannel ?
+
+                if txChannel:
+                    txChannel -= 1
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_CHANNEL].newVal &= ~0x0f
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_CHANNEL].newVal |= txChannel
+                    # set parameters
+                    # disable adaptative channel
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal &= ~armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_CHANNEL
+                # set txSf ?
+                if txSf:
+                    # set parameters
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_SF].newVal &= ~0x07
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_SF].newVal |= 12-txSf
+                    # disable tx adaptative speed
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal &= ~armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_SPEED
+                # set rx2sf ?
+                if rx2Sf:
+                    # set parameters
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_SF].newVal &= ~(0x07<<3)
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_SF].newVal |= ((12-rx2Sf)<<3)
+                    #disable rx2 adaptative speed
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal &= ~armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_RX2
+                # set rx2Channel
+                if rx2Channel:
+                    rx2Channel -=1
+                    # set parameters
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_CHANNEL].newVal &= ~0xf0
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_CHANNEL].newVal |= rx2Channel<<4
+                    # disable rx2 adaptative speed
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal &= ~armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_RX2
+
+                return 0
+        print("ERROR not supported")
+        return -1
+
+    # return a list [txChannel,power,txSf,rx2Sf,rx2Channel]
+    # only for LW
+
+    def LwGetRadio(self,txChannel,power,txSf,rx2Sf,rx2Channel):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+
+                # get txChannel
+                if txChannel:
+                    txChannel = self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_CHANNEL].newVal&0x0f
+                    txChannel += 1
+
+                # Get power
+                if power:
+                    if self.N8LW.regsO[armconst._ARM_N8LW_IREGO_POWER].newVal&0x07 == armconst._ARM_N8LW_REGO_POWER_14:
+                        power = 14
+                    if self.N8LW.regsO[armconst._ARM_N8LW_IREGO_POWER].newVal&0x07 == armconst._ARM_N8LW_REGO_POWER_11:
+                        power = 11
+                    if self.N8LW.regsO[armconst._ARM_N8LW_IREGO_POWER].newVal&0x07 == armconst._ARM_N8LW_REGO_POWER_8:
+                        power = 8
+                    if self.N8LW.regsO[armconst._ARM_N8LW_IREGO_POWER].newVal&0x07 == armconst._ARM_N8LW_REGO_POWER_5:
+                        power = 5
+                    if self.N8LW.regsO[armconst._ARM_N8LW_IREGO_POWER].newVal&0x07 == armconst._ARM_N8LW_REGO_POWER_2:
+                        power = 2
+                    else:
+                        power = 0
+
+                # Get txSf
+                if txSf:
+                    txSf = self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_SF].newVal&0x07
+                    txSf = 12-(txSf)
+                # Get rx2sf
+                if rx2Sf:
+                    rx2Sf = ((self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_SF].newVal)>>3)&0x07
+                    rx2Sf = 12-(rx2Sf)
+                # Get rx2Channel
+                if rx2Channel:
+                    rx2Channel = ((self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_CHANNEL].newVal)>>4)&0x07
+                    rx2Channel += 1
+
+                radio = [txChannel, power, txSf, rx2Sf, rx2Channel]
+                return radio
+        return -1
+
+    def LwSetConfirmedFrame(self,nbFrame):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if nbFrame > 15 or nbFrame < -15:
+                    print("ERROR nbframe out of range")
+                    return -1
+
+                if const.ARM_LW_IS_UNCONFIRMED(nbFrame):
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIRMED_FRAME].newVal = const.ARM_LW_UNCONFIRMED(nbFrame)
+                else:
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIRMED_FRAME].newVal = nbFrame<<4
+                return 0
+        return -1
+
+    def LwGetConfirmedFrame(self):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if (self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIRMED_FRAME].newVal)&0x0f:  # is unconfirmed ?
+                    return const.ARM_LW_UNCONFIRMED(self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIRMED_FRAME].newVal)
+                else:
+                    return (self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIRMED_FRAME].newVal)>>4
+
+            return -1
+        return  -1
+
+    def LwSetPortField(self,port):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                self.N8LW.regsO[armconst._ARM_N8LW_IREGO_PORT_FIELD].newVal = port
+            return -1
+        return -1
+
+    def LwGetPortField(self):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                return self.N8LW.regsO[armconst._ARM_N8LW_IREGO_PORT_FIELD].newVal
+            return -1
+        return -1
+
+    def LwEnableOtaa(self,enable):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if enable:
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal |= armconst._ARM_N8LW_REGO_CONFIG
+                    return 0
+                else:
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal &= ~armconst._ARM_N8LW_REGO_CONFIG
+                    return 0
+            return -1
+        return -1
+
+    def LwIsEnableOtaa(self):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal&armconst._ARM_N8LW_REGO_CONFIG_OTAA:
+                    return 1
+                else:
+                    return 0
+            return -1
+        return -1
+
+    def LwEnableRxWindows(self,enable):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if enable:
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal |= armconst._ARM_N8LW_REGO_CONFIG_RX_ON
+                else:
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal &= ~armconst._ARM_N8LW_REGO_CONFIG_RX_ON
+            return -1
+        return -1
+
+    def LwIsEnableRxWindows(self):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal&armconst._ARM_N8LW_REGO_CONFIG_RX_ON:
+                    return 1
+                else:
+                    return 0
+            return -1
+        return 1
+
+    def LwEnableTxAdaptativeSpeed(self,enable):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if enable:
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal |= armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_SPEED
+                    return 0
+                else:
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal &= ~armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_SPEED
+                    return 0
+            return -1
+        return -1
+
+    def LwIsEnableTxAdaptativeSpeed(self):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal&armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_SPEED:
+                    return 1
+                else:
+                    return 0
+            return -1
+        return -1
+
+    def LwEnableDutyCycle(self,enable):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if enable:
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal |= armconst._ARM_N8LW_REGO_CONFIG_DUTY_CYCLE
+                    return 0
+                else:
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal &= ~armconst._ARM_N8LW_REGO_CONFIG_DUTY_CYCLE
+                    return 0
+            return -1
+        return-1
+
+
+    def LwIsEnableDutyCycle(self):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal&armconst._ARM_N8LW_REGO_CONFIG_DUTY_CYCLE:
+                    return 1
+                else:
+                    return 0
+            return -1
+        return -1
+
+    def LwEnableTxAdaptativeChannel(self,enable):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if enable:
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal |= armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_CHANNEL
+                    return 0
+                else:
+                    self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal &= ~armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_CHANNEL
+                    return 0
+            return -1
+        return-1
+
+    def LwIsEnableTxAdaptativeChannel(self):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal&armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_CHANNEL:
+                    return 1
+                else:
+                    return 0
+            return -1
+        return -1
+
+
+    def LwEnableRx2Adaptative(self,enable):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if enable:
+                    self.N8LW.regsO[
+                        armconst._ARM_N8LW_IREGO_CONFIG].newVal |= armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_RX2
+                    return 0
+                else:
+                    self.N8LW.regsO[
+                        armconst._ARM_N8LW_IREGO_CONFIG].newVal &= ~armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_RX2
+                    return 0
+            return -1
+        return -1
+
+    def LwIsEnableRx2Adaptative(self):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal&armconst._ARM_N8LW_REGO_CONFIG_ADAPTIVE_RX2:
+                    return 1
+                else:
+                    return 0
+            return -1
+        return -1
+
+    def LwIds(self,devAddr,devEui,appEui,appKey,nwkSKey,appSKey):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
