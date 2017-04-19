@@ -130,6 +130,11 @@ class Arm:
     def __init__(self):
         self.port = 0
         self.type = 0
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("Not implemented yet")
+            exit(-1)
+        if armconfig.ARM_WITH_N8_LW:
+            self.N8LW = armN8Lw_t
 
     def Init(self,port):
         self.type = armType_t.ARM_TYPE_NONE
@@ -169,7 +174,7 @@ class Arm:
             exit(1)
         # no need to reboot cuz inittialization ( type == ARM_TYPE_NONE)
         if self.type != armType_t.ARM_TYPE_NONE:
-            if self._GoAt() == -1:
+            if self.GoAt() == -1:
                 print("ERROR GoAt")
                 return -1
 
@@ -190,6 +195,428 @@ class Arm:
         except Exception as err:
             print("ERROR makin config " + err)
             return -1
+        if self.info(self.type):
+            print("ERROR info")
+            return -1
+
+        if armconfig.ARM_WITH_N8_LW:
+            # we gonna init the register M, dirty, we need a function to do it
+            self.N8LW.regsM[armconst._ARM_N8LW_IREGM_CONFIGURATION].reg = armconst._ARM_N8LW_REGM_CONFIGURATION
+            self.N8LW.regsM[armconst._ARM_N8LW_IREGM_LOW_POWER].reg = armconst._ARM_N8LW_REGM_LOW_POWER
+            self.N8LW.regsM[armconst._ARM_N8LW_IREGM_LED].reg = armconst._ARM_N8LW_REGM_LED
+
+            # we gonna init the register O, dirty, we need a function to do it
+            self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_SF].reg = armconst._ARM_N8LW_REGO_TXRX2_SF
+            self.N8LW.regsO[armconst._ARM_N8LW_IREGO_POWER].reg = armconst._ARM_N8LW_REGO_POWER
+            self.N8LW.regsO[armconst._ARM_N8LW_IREGO_TXRX2_CHANNEL].reg = armconst._ARM_N8LW_REGO_TXRX2_CHANNEL
+            self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIRMED_FRAME].reg = armconst._ARM_N8LW_REGO_CONFIRMED_FRAME
+            self.N8LW.regsO[armconst._ARM_N8LW_IREGO_PORT_FIELD].reg = armconst._ARM_N8LW_REGO_PORT_FIELD
+            self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].reg = armconst._ARM_N8LW_REGO_CONFIG
+
+            # Go to AT command for get register
+        if self.GoAt() == -1:
+            print("ERROR GoAt")
+            return -1
+
+        if armconfig.ARM_WITH_N8_LW:
+            i = 0
+            # read all M register from ARM
+            while i < armconst._ARM_N8LW_REGM_SIZE:
+                # kinda C++ syntax might be modified
+                # TODO LATER
+                if self.GetReg('M',self.N8LW.regsM[i].reg,self.N8LW.regsM[i].val):
+                    print("ERROR gettin regM")
+                    return -1
+                self.N8LW.regsM[i].newVal = self.N8LW.regsM[i].val
+                i +=1
+
+            i = 0
+            while i < armconst._ARM_N8LW_REGO_SIZE:
+                if self.GetReg('M',self.N8LW.regsO[i].reg,self.N8LW.regsO[i].val):
+                    print("ERROR gettin regO")
+                    return -1
+                self.N8LW.regsO[i].newVal = self.N8LW.regsM[i].val
+                i += 1
+
+            if armconfig.ARMPORT_WITH_nSLEEP:
+                print("ERROR not implemented yet")
+                exit(1)
+            else:
+                # disable wake up on the sleep pin
+                self.N8LW.regsM[armconst._ARM_N8LW_IREGM_LOW_POWER].newVal &= ~armconst._ARM_N8LW_REGM_LOW_POWER_ENABLE
+
+        #backAt
+        if self.BackAt():
+            print("ERROR back AT")
+            return -1
+
+        return self.UpdateConfig()
+
+    # return a list with [armType,rev,sn,_rfFreq,_rfPower]
+    # return -1 if error
+
+    def info(self,rev,sn,rfFreq,rfPower):
+
+        armType = armType_t.ARM_TYPE_NONE
+        _rfFreq = -1
+        _rfPower = -1
+        buf = ""
+
+        # get type, rev and sn from 'ATV' command
+
+        if self.type == armType_t.ARM_TYPE_NONE or rev or sn:
+            # go AT command
+            if self.GoAt():
+                print("ERROR Go AT")
+                return -1
+            if self.WriteRead("ATV\n", buf, const.ARM_TIME_TIMEOUT): # buf might not work should return it m8be
+                print("ERROR PORT WRITE READ")
+                return -1
+            # quit AT command
+            if self.BackAt():
+                print("ERROR BACK AT")
+                return -1
+            #search LoRa
+            if buf.find("LoRa",len(buf)):
+                armType = armType_t.ARM_TYPE_N8_LW
+                _rfFreq = 868
+                _rfPower = armconst._ARM_N8LW_MAX_POWER
+            else:
+                # Is 868 Mhz
+                if buf.find("868MHZ",len(buf)):
+                    _rfFreq = 868
+                # Is LP
+                if buf.find("14DBM",len(buf)):
+                    _rfPower = armconst._ARM_N8LPLD_LP_MAX_POWER
+                    armType = armType_t.ARM_TYPE_N8_LP
+                else: # LD
+                    _rfPower = armconst._ARM_N8LPLD_LD_MAX_POWER
+                    armType = armType_t.ARM_TYPE_N8_LD
+
+            if rev:  # Get ARM firmware revision
+                if armconfig.ARM_WITH_N8_LPLD:
+                    print("ERROR Not implemented yet")
+                    exit(-1)
+                if armconfig.ARM_WITH_N8_LW:
+                    if armType & armconfig.ARM_WITH_N8_LW:
+                        index = buf.find("Rev:", len(buf))
+                        index =+ 4
+                        while buf[index] != ' ' or buf[index] != '\n' or buf[index] != '\0':
+                            rev += buf[index]
+                            index += 1
+                        rev += '\0'
+
+            if sn:  # Get ARM serial number
+                if armconfig.ARM_WITH_N8_LPLD:
+                    print("ERROR Not implemented yet")
+                    exit(-1)
+                if armconfig.ARM_WITH_N8_LW:
+                    if armType & armconfig.ARM_WITH_N8_LW:
+                        index = buf.find("S/N:", len(buf))
+                        index += 4
+                        while buf[index] != ' ' or buf[index] != '\n' or buf[index] != '\0':
+                            sn += buf[index]
+                            index +=1
+                        sn += '\0'
+        else:
+            armType = self.type  # get type from ARM type
+            if armType&(armType_t.ARM_TYPE_N8_LP|armType_t.ARM_TYPE_N8_LD|armType_t.ARM_TYPE_N8_LW):
+                _rfFreq = 868
+
+            # get power from ARM type
+            if armType&(armType_t.ARM_TYPE_N8_LP|armType_t.ARM_TYPE_N8_LW):
+                _rfPower = armconst._ARM_N8LPLD_LP_MAX_POWER
+            elif armType&(armType_t.ARM_TYPE_N8_LD):
+                _rfPower = armconst._ARM_N8LPLD_LD_MAX_POWER
+
+        # we gonna return all settings, not sure reference work so return data aswell on a list
+
+        config=[armType,rev,sn,_rfFreq,_rfPower]
+        self.type = armType
+        rfFreq = _rfFreq
+        rfPower = _rfPower
+
+        return config
+    # set the mode
+    # u need to call UpdateConfig to update the parameters in your ARM
+    # not usefull for LoRa
+
+    def SetMode(self,mode):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if mode == armMode_t.ARM_MODE_LORAWAN:
+                    return 0
+
+        return -1
+
+    # get the mode
+    # return the mode FSK by default
+
+    def GetMode(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                return armMode_t.ARM_MODE_LORAWAN
+
+        return armMode_t.ARM_MODE_FSK
+
+    # Enable disable down link, not used by LW
+    def SfxEnableDownlink(self,enable):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    # check if sigfox downlink is enable
+    # not used by LW
+    def SfxIsEnableDownlink(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+    # Get the maximal possible power
+    # not used by LW
+    def FskMaxPower(self,radiochannel,radiobaud):
+        print("ERROR not implemented yet")
+        return -1
+
+    # setup fsk local radio configuration
+    # not used by LW
+    def FskSetRadio(self,channel,baud,power):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    # get the radio config
+    # return a list [channel,baud,power]
+    # not use by LW
+    def FskGetRadio(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+    # set the radio remote address
+    # not used by LW
+    def FskSetRemoteAdd(self,add):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+    # Get the remote addr
+    # return 255 if not supported mean nothing
+    # not used by LW
+    def FskGetRemoteAdd(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return 255
+
+    # Set the radio local address
+    # not used by LW
+    def FskSetLocalAdd(self,add):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    # Get the radio local add
+    #not used by LW
+    def FskGetLocalAdd(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    # Enable local addressing
+    # not used by LW
+    def FskEnableAddressing(self,enable):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    # not used by LW
+    def FskIsEnableAddressing(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    # enable disable crc
+    # not used by LW
+    def FskEnableCrc(self,enable):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    def FskIsEnableCrc(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    # enable disable infinty mode
+    # not used by LW
+    def FskEnableIfinityMode(self,enable):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    def FskIsEnableInfinityMode(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+    # not used by LW
+    def FskEnableWhitening(self,enable):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    def FskIsEnableWhitening(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    # setup serial port config
+    # not used by LW
+    def SetSerial(self,baud,databits,parity,stopbits):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+    # return a list [baud,databits,parity,stopbits]
+    # not used by LW
+    def GetSerial(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+    # enable and configure Wake On Radio mode
+    # not used by LW
+    def FskSetWorMode(self,mode,periodTime,postTime,rssiLevel,filterLongPreamble):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+    # return a list [mode,periodTime,postTime,rssiLevel,filterLongPreamble]
+    # not used by LW
+    def FskGetWorMode(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+    # enable wake up by uart/serie
+    # not used by LW
+    def EnableWakeUpUart(self,enable):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    def IsEnableWakeUpUart(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    # Enable and configure the Lbt&Afa mode
+    # not used by LW
+    def FskSetLbtAfaMode(self,mode,rssiLevel,nSamples,channel2):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    # return a list [mode,rssiLevel,nSamples,channel2]
+    # not used by LW
+    def FskGetLbtAfaMode(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            exit(-1)
+        else:
+            print("ERROR Not supported")
+            return -1
+
+    def SetLed(self,led):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
