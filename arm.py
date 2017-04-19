@@ -1050,7 +1050,7 @@ class Arm:
 
     def Send(self,buf):
         if self.port.Write(buf):
-            print("ERROR sending")
+            print("ERROR sending data")
             return -1
         return 0
 
