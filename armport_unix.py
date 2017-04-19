@@ -149,11 +149,11 @@ class ArmPort():
             exit(-1)
         return 0
 
-    def close(self):
+    def Close(self):
         self._port.close()  # should work gotta test TODO
         exit(0)
 
-    def write(self, data):
+    def Write(self, data):
         try:
             self._port.write(str(data))
         except Exception as err:
@@ -161,7 +161,7 @@ class ArmPort():
             return -1
         return 0
 
-    def read(self, timeout):
+    def Read(self, timeout):
         try:
             select.select(self._port, None, None, timeout)
         except OSError as err:
@@ -170,5 +170,5 @@ class ArmPort():
         buf = self._port.read()
         return buf
 
-    def delay(self, time_sec):
+    def Delay(self, time_sec):
         time.sleep(time_sec)

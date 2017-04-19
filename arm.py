@@ -156,7 +156,7 @@ class Arm:
 
     def DeInit(self):
         try:
-            self.port.close()
+            self.port.Close()
         except Exception as err:
             print("ERROR while closing port " + err)
             return -1
@@ -179,11 +179,11 @@ class Arm:
                 return -1
 
             # Reboot by "ATR" if ARM is already initialized/used
-            if self.port.write("ATR\n"):
+            if self.port.Write("ATR\n"):
                 print("ERROR writing on port")
                 return -1
         #wait till booting
-        self.port.delay(const.ARM_TIME_BOOTING)
+        self.port.Delay(const.ARM_TIME_BOOTING)
 
         if armconfig.ARM_WITH_N8_LPLD:
             print("ERROR not implemented yet")
@@ -260,7 +260,7 @@ class Arm:
         armType = armType_t.ARM_TYPE_NONE
         _rfFreq = -1
         _rfPower = -1
-        buf = ""
+        buf = None
 
         # get type, rev and sn from 'ATV' command
 
@@ -269,7 +269,8 @@ class Arm:
             if self.GoAt():
                 print("ERROR Go AT")
                 return -1
-            if self.WriteRead("ATV\n", buf, const.ARM_TIME_TIMEOUT): # buf might not work should return it m8be
+            buf = self.WriteRead("ATV\n",buf,const.ARM_TIME_TIMEOUT)
+            if buf is None:  # buf might not work should return it m8be
                 print("ERROR PORT WRITE READ")
                 return -1
             # quit AT command
@@ -968,6 +969,104 @@ class Arm:
         return -1
 
     def UpdateConfig(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemtend yet")
+            return -1
+        if armconfig.ARM_WITH_N8_LW:
+            if armType_t.ARM_TYPE_N8_LW:
+                im = 0
+                io = 0
+                # Enable or disable OTAA ?
+                if self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].newVal&armconst._ARM_N8LW_REGO_CONFIG_OTAA != self.N8LW.regsO[armconst._ARM_N8LW_IREGO_CONFIG].val&armconst._ARM_N8LW_REGO_CONFIG_OTAA:
+                    buf = None
+                    if self.GoAt():
+                        print("ERROR going AT command")
+                        return -1
+                    # Enable or disable OTAA
+                    io = armconst._ARM_N8LW_IREGO_CONFIG
+                    if self.SetReg('O',self.N8LW.regsO[io].reg, self.N8LW.regsO[io].newVal):
+                        print("ERROR Setting Register")
+                        return -1
+                    # save the configuration
+                    buf = self.WriteRead("ATOS\r",buf,const.ARM_TIME_TIMEOUT)
+                    if buf is None:
+                        print("ERROR while write reading")     # tricky section
+                        return -1
+                    # check replay
+                    if buf.find("RAM => EEPROM",len(buf)) == -1:
+                        print("ERROR ARM_CMD")
+                        return -1
+                    if self.Reboot():
+                        print("ERROR while rebooting")
+                        return -1
+
+                # find index of first  register M changed
+                while im < armconst._ARM_N8LW_REGM_SIZE:
+                    if self.N8LW.regsM[im].newVal != self.N8LW.regsM[im].val:
+                        break
+                    im += 1
+
+                # Find index of first register O changed
+                io = 0
+                while io < armconst._ARM_N8LW_REGO_SIZE:
+                    if self.N8LW.regsO[io].newVal != self.N8LW.regsO[io].val:
+                        break
+                    io += 1
+
+                # Register change ?
+                if im < armconst._ARM_N8LW_REGM_SIZE or io < armconst._ARM_N8LW_REGO_SIZE:
+                    if self.GoAt():
+                        print("ERROR going AT commend")
+                        return -1
+                    # Registers M change found ?
+                    if im < armconst._ARM_N8LW_REGM_SIZE:
+                        im = 0
+                        while im < armconst._ARM_N8LW_REGM_SIZE:
+                            # Set the new value if value changed
+                            # we already check all of this its ugly asf
+                            if self.N8LW.regsM[im].newVal != self.N8LW.regsM[im].val:
+                                if self.SetReg('M',self.N8LW.regsM[im].reg,self.N8LW.regsM[im].newVal):
+                                    print("ERROR Setting Reg")
+                                    return -1
+                                self.N8LW.regsM[im].val = self.N8LW.regsM[im].newVal
+                            im += 1
+                    # Register O change Found ?
+                    if io < armconst._ARM_N8LW_REGO_SIZE:
+                        io = 0
+                        while io < armconst._ARM_N8LW_REGO_SIZE:
+                            # Set new value if value changed
+                            if self.N8LW.regsO[io].newVal != self.N8LW.regsO[io].val:
+                                if self.SetReg('O',self.N8LW.regsO[io].reg,self.N8LW.regsO[io].newVal):
+                                    print("ERROR setting Reg")
+                                    return -1
+                                self.N8LW.regsO[io].val = self.N8LW.regsO[io].newVal
+
+                    if self.BackAt():
+                        print("ERROR back at command")
+                        return -1
+                return 0
+            return -1
+        return -1
+
+    def Send(self,buf):
+        if self.port.Write(buf):
+            print("ERROR sending")
+            return -1
+        return 0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
