@@ -916,6 +916,62 @@ class Arm:
         return -1
 
     def LwIds(self,devAddr,devEui,appEui,appKey,nwkSKey,appSKey):
+        if armconfig.ARM_WITH_N8_LW:
+            if self.type == armType_t.ARM_TYPE_N8_LW:
+                if self.GoAt():
+                    print("ERROR GoAt")
+                    return -1
+                i = 0
+                if devAddr:
+                    while i < armconst._ARM_N8LW_SIZE_DEVADDR:
+                        if self.GetReg('O',i+armconst._ARM_N8LW_REGO_DEVADDR,devAddr[i]):
+                            print("ERROR gettin regO")
+                            return -1
+                        i += 1
+                if devEui:
+                    i = 0
+                    while i < armconst._ARM_N8LW_SIZE_DEVEUI:
+                        if self.GetReg('O',i+armconst._ARM_N8LW_REGO_DEVEUI,devEui[i]):
+                            print("ERROR gettin regO")
+                            return -1
+                        i += 1
+                if appEui:
+                    i = 0
+                    while i < armconst._ARM_N8LW_SIZE_APPEUI:
+                        if self.GetReg('O', i + armconst._ARM_N8LW_REGO_APPEUI, appEui[i]):
+                            print("ERROR gettin regO")
+                            return -1
+                        i += 1
+                if appKey:
+                    i = 0
+                    while i < armconst._ARM_N8LW_SIZE_APPKEY:
+                        if self.GetReg('O', i + armconst._ARM_N8LW_REGO_APPKEY, appKey[i]):
+                            print("ERROR gettin regO")
+                            return -1
+                        i += 1
+                if nwkSKey:
+                    i = 0
+                    while i < armconst._ARM_N8LW_SIZE_NWKSKEY:
+                        if self.GetReg('O', i + armconst._ARM_N8LW_REGO_NWKSKEY, nwkSKey[i]):
+                            print("ERROR gettin regO")
+                            return -1
+                        i += 1
+                if appEui:
+                    i = 0
+                    while i < armconst._ARM_N8LW_SIZE_APPEUI:
+                        if self.GetReg('O', i + armconst._ARM_N8LW_REGO_APPEUI, appEui[i]):
+                            print("ERROR gettin regO")
+                            return -1
+                        i += 1
+                return self.BackAt()
+            return -1
+        return -1
+
+    def UpdateConfig(self):
+
+
+
+
 
 
 
