@@ -1063,9 +1063,22 @@ class Arm:
                 return -1
 
     def Read(self,timeout):
-        # need to be odne
-    def WriteRead(self,timeout):
-        # also
+
+        buf = self.port.Read(timeout)
+        if buf == -1:
+            print("ERROR Read")
+            return -1
+        return buf
+
+
+
+    def WriteRead(self,data,timeout):
+        if self.port.Write(data) == -1:
+            print("ERROR")
+            return -1
+        buf = self.Read(timeout)
+        return buf
+
 
     def GoAt(self):
         ntry = 0
@@ -1100,14 +1113,66 @@ class Arm:
             buf = self.WriteRead(const.ARM_TIME_TIMEOUT)
         if buf < 0:
             return -1
-        if not buf.find("QUIT SETUP",len(buf)) and buf.find("Quit setup",len(buf)):
+        if  buf.find("QUIT SETUP",len(buf)) == -1 and buf.find("Quit setup",len(buf)) == -1:
             print("ERROR back AT")
             return -1
         self.port.Delay(const.ARM_TIME_BACK_AT)
         return 0
 
-    def GetReg(self,type,num,val):
+    def GetReg(self,type,num):
         # Create AT command
+        abuf = None
+        tbuf = "AT"
+        tbuf += str(type)
+        tbuf += str(num)
+        tbuf += "\r"
+
+        abuf = self.WriteRead(tbuf,const.ARM_TIME_TIMEOUT)
+        if abuf == -1:
+            print("ERROR timeout")
+            return -1
+
+        # check the message
+        tbuf = tbuf[:6] + "="
+        abuf += "\0"
+        ptrrbuf = abuf.find(tbuf[2:],len(abuf))
+        if ptrrbuf == -1:
+            print("ERROR get reg")
+            return -1
+
+        ptrrbuf += 5
+        return ptrrbuf
+
+    def SetReg(self,type,num,val):
+        tbuf = "AT"
+        abuf = ""
+        # create AT command
+        tbuf += str(type)
+        tbuf += str(num)
+        tbuf += "="
+        tbuf += str(val)
+        tbuf += "\r"
+
+        abuf = self.WriteRead(tbuf,const.ARM_TIME_TIMEOUT)
+        if abuf == -1:
+            print("ERROR PORT WRITE READ")
+            return -1
+
+        # check the message
+        if abuf.find(tbuf[2:5],len(tbuf)) == -1:
+            print("ERROR SET REG")
+            return -1
+
+
+
+
+
+
+
+
+
+
+
 
 
 

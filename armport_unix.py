@@ -166,7 +166,7 @@ class ArmPort():
             select.select(self._port, None, None, timeout)
         except OSError as err:
             print("Error might be timeout " + str(err)) # need also test TODO
-            return 0
+            return -1
         buf = self._port.read()
         return buf
 
