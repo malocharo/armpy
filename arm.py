@@ -1054,6 +1054,71 @@ class Arm:
             return -1
         return 0
 
+    def Receive(self,timeout):
+        while 1:
+            buf = self.port.Read(timeout)
+            if buf:
+                return buf
+            else:
+                return -1
+
+    def Read(self,timeout):
+        # need to be odne
+    def WriteRead(self,timeout):
+        # also
+
+    def GoAt(self):
+        ntry = 0
+        buf = None
+        timeout = 0
+        while ntry < const.ARM_NUMBER_OF_TRIALS_GO_AT:
+            ntry += 1
+            # Write "+++" to go AT
+            if armconfig.ARM_WITH_N8_LPLD:
+                print("ERROR not implemented yet")
+                return -1
+            buf = self.WriteRead(const.ARM_TIME_TIMEOUT)
+            if buf < 0:
+                print("ERROR write read")
+                return -1
+            # if a is read, send g to quit bootloader
+            if buf.find("a",len(buf)):
+                self.port.Write("g")
+                timeout = self.port.Delay(const.ARM_TIME_BOOTING)
+
+            elif buf.find("ARM",len(buf)) or timeout == -1:
+                return 0
+
+            return -1
+
+    def BackAt(self):
+        if armconfig.ARM_WITH_N8_LPLD:
+            print("ERROR not implemented yet")
+            return -1
+        buf = None
+        if armconfig.ARM_WITH_N8_LW and self.type == armType_t.ARM_TYPE_N8_LW:
+            buf = self.WriteRead(const.ARM_TIME_TIMEOUT)
+        if buf < 0:
+            return -1
+        if not buf.find("QUIT SETUP",len(buf)) and buf.find("Quit setup",len(buf)):
+            print("ERROR back AT")
+            return -1
+        self.port.Delay(const.ARM_TIME_BACK_AT)
+        return 0
+
+    def GetReg(self,type,num,val):
+        # Create AT command
+
+
+
+
+
+
+
+
+
+
+
 
 
 
